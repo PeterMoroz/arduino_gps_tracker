@@ -1,7 +1,13 @@
 #include <SoftwareSerial.h>
 
+#include <SPI.h>
+#include <SD.h>
+
+
 #define RX_PIN 7
 #define TX_PIN 8
+
+#define SD_CS_PIN 4
 
 SoftwareSerial swSerial(RX_PIN, TX_PIN);
 
@@ -46,6 +52,7 @@ struct RMCdata
 
 
 void parseSentence(void);
+void dumpRMC(void);
 
 void setup()
 {
@@ -54,6 +61,12 @@ void setup()
   while (!Serial) {
     ;
   }
+
+  if (!SD.begin(SD_CS_PIN)) {
+    while (1) ;
+  }
+
+  Serial.println(F("SD initialized"));
 
   // clear RMC data
   rmcData.hour = 0;
@@ -78,7 +91,7 @@ void setup()
   
   rmcData.valid = false;
 
-  Serial.println("Setup complete");
+  Serial.println(F("Setup complete"));
 }
 
 void loop()
@@ -115,13 +128,14 @@ void loop()
 
           if (rmcData.valid)
           {
-            char str[128];
+/*            char str[128];
             sprintf(str, "%02d/%02d/%02d %02d:%02d:%02d.%02d  Lat: %02d%02d.%05lu %c Lng: %03d%02d.%05lu %c",
               rmcData.day, rmcData.month, rmcData.year, 
               rmcData.hour, rmcData.minute, rmcData.second, rmcData.millisecond,
               rmcData.latDegrees, rmcData.latMinutes, rmcData.latMinutesFract, rmcData.nsIndicator, 
               rmcData.lngDegrees, rmcData.lngMinutes, rmcData.lngMinutesFract, rmcData.ewIndicator);
-            Serial.println(str);
+            Serial.println(str);*/
+            dumpRMC();
           }
           
         }
@@ -143,9 +157,9 @@ void loop()
     }
   } while ((millis() - t) < 1000);
 
-  Serial.print("symbols: ");
+  Serial.print(F("symbols: "));
   Serial.println(symbolCount);
-  Serial.print("sentences: ");
+  Serial.print(F("sentences: "));
   Serial.println(sentenceCount);
 }
 
@@ -153,12 +167,10 @@ void parseRMC(void)
 {
   unsigned idx = 0;
 
-  Serial.println("check Status");
   // check 'Status' field
   idx = delimitersIndexes[1] + 1;
   if (delimitersIndexes[2] - idx == 1 && sentenceBuffer[idx] == 'A')
   {
-    Serial.println("parse UTC time");
     // parse 'UTC time' field
     idx = delimitersIndexes[0] + 1;
     if (delimitersIndexes[1] - idx == 9)
@@ -186,7 +198,6 @@ void parseRMC(void)
       return;
     }
 
-    Serial.println("parse Latitude");
     // parse 'Latitude' field and N/S indicator
     idx = delimitersIndexes[2] + 1;
     if (delimitersIndexes[3] - idx == 10)
@@ -227,7 +238,6 @@ void parseRMC(void)
       return;
     }   
 
-    Serial.println("parse Longitude");
     // parse 'Longitude' field and E/W indicator
     idx = delimitersIndexes[4] + 1;
     if (delimitersIndexes[5] - idx == 11)
@@ -270,7 +280,6 @@ void parseRMC(void)
       return;
     }
 
-    Serial.println("parse UTC date");
     // parse 'UTC date' field
     idx = delimitersIndexes[8] + 1;
     if (delimitersIndexes[9] - idx == 6)
@@ -292,9 +301,38 @@ void parseRMC(void)
       return;
     }
 
-    Serial.println("RMC data ready");
     // now assume that the message is valid, even if other fields are no present
     rmcData.valid = true;
+  }
+}
+
+void dumpRMC(void)
+{
+  static char filename[18] = { '\0' };
+  static bool fnameInit = false;
+  if (rmcData.valid)
+  {
+    if (!fnameInit) 
+    {
+      sprintf(filename, "%02d%02d%02d%02d.csv",  // ddhhmmss.csv
+              rmcData.day, rmcData.hour, rmcData.minute, rmcData.second);
+      fnameInit = true;
+    }
+
+    File file = SD.open(filename, FILE_WRITE);    
+    if (file)
+    {
+      char row[64];
+      sprintf(row, "%02d/%02d/%02d,%02d:%02d:%02d.%02d,%02d%02d.%05lu,%03d%02d.%05lu", 
+          rmcData.year, rmcData.month, rmcData.day, rmcData.hour, rmcData.minute, rmcData.second, rmcData.millisecond,
+          rmcData.latDegrees, rmcData.latMinutes, rmcData.latMinutesFract, rmcData.lngDegrees, rmcData.lngMinutes, rmcData.lngMinutesFract);
+      file.println(row);          
+      file.close();  
+    }
+    else
+    {
+      Serial.println(F("Could not open file to write."));
+    }
   }
 }
 
@@ -304,10 +342,11 @@ void parseSentence(void)
   {
     parseRMC();
 
+/*
     Serial.print("-- RMC sentence: ");
     for (const char* p = sentenceBuffer; *p; p++) {
       Serial.print(*p);
     }
-    Serial.println("");    
+    Serial.println("");    */
   }
 }
