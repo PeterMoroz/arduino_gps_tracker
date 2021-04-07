@@ -3,6 +3,10 @@
 #include <SPI.h>
 #include <SD.h>
 
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+
 
 #define RX_PIN 7
 #define TX_PIN 8
@@ -10,6 +14,8 @@
 #define SD_CS_PIN 4
 
 SoftwareSerial swSerial(RX_PIN, TX_PIN);
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 
 #define BUFFER_SIZE 256
@@ -67,6 +73,10 @@ void setup()
   }
 
   Serial.println(F("SD initialized"));
+
+  lcd.init();  
+  lcd.backlight();  
+  lcd.setCursor(0, 0);  // col, row
 
   // clear RMC data
   rmcData.hour = 0;
@@ -136,6 +146,14 @@ void loop()
               rmcData.lngDegrees, rmcData.lngMinutes, rmcData.lngMinutesFract, rmcData.ewIndicator);
             Serial.println(str);*/
             dumpRMC();
+
+            char buff[18];
+            lcd.setCursor(0, 0);  // col, row
+            sprintf(buff, "Lat %02d%02d.%05lu%c", rmcData.latDegrees, rmcData.latMinutes, rmcData.latMinutesFract, rmcData.nsIndicator);
+            lcd.print(buff);
+            sprintf(buff, "Lng %02d%02d.%05lu%c", rmcData.lngDegrees, rmcData.lngMinutes, rmcData.lngMinutesFract, rmcData.ewIndicator);
+            lcd.setCursor(0, 1);
+            lcd.print(buff);
           }
           
         }
